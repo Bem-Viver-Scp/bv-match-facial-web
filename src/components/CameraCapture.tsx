@@ -1,3 +1,4 @@
+/* eslint-disable no-empty */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as faceapi from '@vladmandic/face-api';
@@ -38,37 +39,7 @@ type MatchResp = {
   zscore?: number;
   bestDistance?: number;
 };
-function AvatarCircle({
-  src,
-  label,
-  size = 200,
-}: {
-  src?: string | null;
-  label: string;
-  size?: number;
-}) {
-  return (
-    <div className="flex flex-col items-center gap-2">
-      <div
-        className="rounded-full overflow-hidden border shadow"
-        style={{ width: size, height: size }}
-      >
-        {src ? (
-          <img
-            src={src}
-            alt={label}
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-          />
-        ) : (
-          <div className="grid place-items-center w-full h-full bg-gray-100 text-gray-500">
-            {label?.[0]?.toUpperCase() ?? '?'}
-          </div>
-        )}
-      </div>
-      <div className="text-sm text-gray-700">{label}</div>
-    </div>
-  );
-}
+
 export default function CameraAutoCapture() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -681,10 +652,4 @@ function mean(pts: { x: number; y: number }[]) {
     x: pts.reduce((a, b) => a + b.x, 0) / n,
     y: pts.reduce((a, b) => a + b.y, 0) / n,
   };
-}
-function getInitials(name: string) {
-  const parts = name.trim().split(/\s+/);
-  const a = (parts[0]?.[0] || '').toUpperCase();
-  const b = (parts[parts.length - 1]?.[0] || '').toUpperCase();
-  return a + b || '??';
 }

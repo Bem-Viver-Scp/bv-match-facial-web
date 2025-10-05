@@ -34,6 +34,11 @@ type MatchResp = {
     avatar_url?: string | null;
     distance: number;
   };
+  nextAppointment?: {
+    id: string;
+    start_checkin: string;
+    stop_checkin: string;
+  };
   threshold: number;
   gap?: number;
   zscore?: number;
@@ -371,6 +376,7 @@ export default function CameraAutoCapture() {
     const inset = (ringSize - imgSize) / 2;
 
     const m = resp?.match;
+    const appointment = resp?.nextAppointment;
     const showMatch = Boolean(m);
     const dist = m?.distance ?? resp?.bestDistance;
 
@@ -483,6 +489,20 @@ export default function CameraAutoCapture() {
                     <span className="px-2 py-1 rounded-full bg-gray-100 border">
                       z: {resp.zscore.toFixed(2)}
                     </span>
+                  )}
+                  {appointment && (
+                    <>
+                      <span className="px-2 py-1 rounded-full bg-gray-100 border">
+                        Proxima rotina
+                      </span>
+                      <span className="px-2 py-1 rounded-full bg-gray-100 border">
+                        entrada: {appointment.start_checkin}
+                      </span>
+                      <br />
+                      <span className="px-2 py-1 rounded-full bg-gray-100 border">
+                        saida: {appointment.stop_checkin}
+                      </span>
+                    </>
                   )}
                   <span className="px-2 py-1 rounded-full bg-gray-100 border">
                     thr: {resp?.threshold ?? 0.5}

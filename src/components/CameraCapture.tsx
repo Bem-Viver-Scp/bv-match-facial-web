@@ -490,23 +490,47 @@ export default function CameraAutoCapture() {
                       z: {resp.zscore.toFixed(2)}
                     </span>
                   )}
-                  {appointment && (
+                  <span className="px-2 py-1 rounded-full bg-gray-100 border">
+                    thr: {resp?.threshold ?? 0.5}
+                  </span>
+                  {appointment ? (
                     <>
                       <span className="px-2 py-1 rounded-full bg-gray-100 border">
                         Proxima rotina
                       </span>
                       <span className="px-2 py-1 rounded-full bg-gray-100 border">
-                        entrada: {appointment.start_checkin}
+                        entrada:{' '}
+                        {new Date(appointment.start_checkin).toLocaleString(
+                          'pt-BR',
+                          {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          }
+                        )}
                       </span>
                       <br />
                       <span className="px-2 py-1 rounded-full bg-gray-100 border">
-                        saida: {appointment.stop_checkin}
+                        saida:{' '}
+                        {new Date(appointment.stop_checkin).toLocaleString(
+                          'pt-BR',
+                          {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          }
+                        )}
                       </span>
                     </>
+                  ) : (
+                    <span className="px-2 py-1 rounded-full bg-gray-100 border">
+                      sem rotina
+                    </span>
                   )}
-                  <span className="px-2 py-1 rounded-full bg-gray-100 border">
-                    thr: {resp?.threshold ?? 0.5}
-                  </span>
                 </div>
 
                 {/* Aviso de auto-reset */}

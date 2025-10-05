@@ -335,33 +335,33 @@ export default function CameraAutoCapture() {
   // ===== RENDER =====
 
   // Tela de carregamento centrada
-  if (!appReady) {
-    return (
-      <div className="min-h-screen grid place-items-center">
-        <div className="flex flex-col items-center gap-2 text-gray-700">
-          <Lottie
-            animationData={loadingAnim}
-            loop
-            autoplay
-            style={{ width: 120, height: 120 }}
-          />
-          <div>
-            {!modelsReady
-              ? 'Carregando modelos…'
-              : !cameraReady
-              ? 'Abrindo câmera…'
-              : !overlayReady
-              ? 'Ajustando overlay…'
-              : 'Preparando…'}
-          </div>
-          <code className="text-xs text-gray-500 mt-1">
-            flags → models:{String(modelsReady)} | cam:{String(cameraReady)} |
-            overlay:{String(overlayReady)}
-          </code>
-        </div>
-      </div>
-    );
-  }
+  // if (!appReady) {
+  //   return (
+  //     <div className="min-h-screen grid place-items-center">
+  //       <div className="flex flex-col items-center gap-2 text-gray-700">
+  //         <Lottie
+  //           animationData={loadingAnim}
+  //           loop
+  //           autoplay
+  //           style={{ width: 120, height: 120 }}
+  //         />
+  //         <div>
+  //           {!modelsReady
+  //             ? 'Carregando modelos…'
+  //             : !cameraReady
+  //             ? 'Abrindo câmera…'
+  //             : !overlayReady
+  //             ? 'Ajustando overlay…'
+  //             : 'Preparando…'}
+  //         </div>
+  //         <code className="text-xs text-gray-500 mt-1">
+  //           flags → models:{String(modelsReady)} | cam:{String(cameraReady)} |
+  //           overlay:{String(overlayReady)}
+  //         </code>
+  //       </div>
+  //     </div>
+  //   );
+  // }
 
   // Tela de captura: centralizada e com loading circular
 

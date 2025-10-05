@@ -384,82 +384,84 @@ export default function CameraAutoCapture() {
       <div className="min-h-screen grid place-items-center px-4">
         <div className="flex flex-col items-center gap-8 w-full max-w-4xl">
           {/* Linha com "Você" e "Match" */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-10 sm:gap-16 place-items-center w-full">
-            {/* SUA CAPTURA: LOTTIE ATRÁS + IMAGEM NA FRENTE */}
-            <div
-              className="relative"
-              style={{ width: ringSize, height: ringSize }}
-            >
-              {/* Lottie fica por baixo da imagem */}
-              {/* {loading && ( */}
-              <Lottie
-                animationData={loadingAnim}
-                loop
-                autoplay
-                style={{
-                  position: 'absolute',
-                  left: 0,
-
-                  inset: 0,
-                  width: ringSize,
-                  height: ringSize,
-                  pointerEvents: 'none',
-                  zIndex: 1, // atrás
-                }}
-                rendererSettings={{ preserveAspectRatio: 'xMidYMid slice' }}
-              />
-              {/* )} */}
-
-              {/* Foto por cima */}
-              <img
-                src={preview}
-                alt="Você"
-                style={{
-                  position: 'absolute',
-                  top: inset,
-                  left: inset,
-                  width: imgSize,
-                  height: imgSize,
-                  objectFit: 'cover',
-                  borderRadius: '9999px',
-                  boxShadow:
-                    '0 10px 20px rgba(0,0,0,0.15), inset 0 0 0 2px rgba(255,255,255,0.9)',
-                  zIndex: 1, // na frente
-                }}
-              />
-
-              <div className="absolute -bottom-7 w-full text-center text-sm text-gray-700">
-                Você
-              </div>
-            </div>
-
-            {/* Foto do médico reconhecido (ou placeholder) */}
-            <div className="flex flex-col items-center">
+          {!resp && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-10 sm:gap-16 place-items-center w-full">
+              {/* SUA CAPTURA: LOTTIE ATRÁS + IMAGEM NA FRENTE */}
               <div
-                className="rounded-full overflow-hidden border shadow"
-                style={{ width: 240, height: 240 }}
+                className="relative"
+                style={{ width: ringSize, height: ringSize }}
               >
-                {showMatch && m?.avatar_url ? (
-                  <img
-                    src={m.avatar_url}
-                    alt={m.name}
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                    }}
-                  />
-                ) : (
-                  <div className="grid place-items-center w-full h-full bg-gray-100 text-gray-500 text-4xl font-semibold">
-                    {showMatch ? (m?.name?.[0] ?? '?').toUpperCase() : '?'}
-                  </div>
-                )}
+                {/* Lottie fica por baixo da imagem */}
+                {/* {loading && ( */}
+                <Lottie
+                  animationData={loadingAnim}
+                  loop
+                  autoplay
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+
+                    inset: 0,
+                    width: ringSize,
+                    height: ringSize,
+                    pointerEvents: 'none',
+                    zIndex: 1, // atrás
+                  }}
+                  rendererSettings={{ preserveAspectRatio: 'xMidYMid slice' }}
+                />
+                {/* )} */}
+
+                {/* Foto por cima */}
+                <img
+                  src={preview}
+                  alt="Você"
+                  style={{
+                    position: 'absolute',
+                    top: inset,
+                    left: inset,
+                    width: imgSize,
+                    height: imgSize,
+                    objectFit: 'cover',
+                    borderRadius: '9999px',
+                    boxShadow:
+                      '0 10px 20px rgba(0,0,0,0.15), inset 0 0 0 2px rgba(255,255,255,0.9)',
+                    zIndex: 1, // na frente
+                  }}
+                />
+
+                <div className="absolute -bottom-7 w-full text-center text-sm text-gray-700">
+                  Você
+                </div>
               </div>
-              <div className="text-sm text-gray-700 mt-2">
-                {showMatch ? m?.name ?? 'Match' : 'Sem match'}
+
+              {/* Foto do médico reconhecido (ou placeholder) */}
+              <div className="flex flex-col items-center">
+                <div
+                  className="rounded-full overflow-hidden border shadow"
+                  style={{ width: 240, height: 240 }}
+                >
+                  {showMatch && m?.avatar_url ? (
+                    <img
+                      src={m.avatar_url}
+                      alt={m.name}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                      }}
+                    />
+                  ) : (
+                    <div className="grid place-items-center w-full h-full bg-gray-100 text-gray-500 text-4xl font-semibold">
+                      {showMatch ? (m?.name?.[0] ?? '?').toUpperCase() : '?'}
+                    </div>
+                  )}
+                </div>
+                <div className="text-sm text-gray-700 mt-2">
+                  {showMatch ? m?.name ?? 'Match' : 'Sem match'}
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Cartão de resultado */}
           <div className="w-full max-w-2xl rounded-2xl border shadow-sm p-5 bg-white">

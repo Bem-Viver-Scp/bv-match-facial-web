@@ -433,38 +433,37 @@ export default function CameraAutoCapture() {
                   Você
                 </div>
               </div>
-
-              {/* Foto do médico reconhecido (ou placeholder) */}
-              <div className="flex flex-col items-center">
-                <div
-                  className="rounded-full overflow-hidden border shadow"
-                  style={{ width: 240, height: 240 }}
-                >
-                  {showMatch && m?.avatar_url ? (
-                    <img
-                      src={m.avatar_url}
-                      alt={m.name}
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
-                      }}
-                    />
-                  ) : (
-                    <div className="grid place-items-center w-full h-full bg-gray-100 text-gray-500 text-4xl font-semibold">
-                      {showMatch ? (m?.name?.[0] ?? '?').toUpperCase() : '?'}
-                    </div>
-                  )}
-                </div>
-                <div className="text-sm text-gray-700 mt-2">
-                  {showMatch ? m?.name ?? 'Match' : 'Sem match'}
-                </div>
-              </div>
             </div>
           )}
 
           {/* Cartão de resultado */}
           <div className="w-full max-w-2xl rounded-2xl border shadow-sm p-5 bg-white">
+            {/* Foto do médico reconhecido (ou placeholder) */}
+            <div className="flex flex-col items-center">
+              <div
+                className="rounded-full overflow-hidden border shadow"
+                style={{ width: 240, height: 240 }}
+              >
+                {showMatch && m?.avatar_url ? (
+                  <img
+                    src={m.avatar_url}
+                    alt={m.name}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                    }}
+                  />
+                ) : (
+                  <div className="grid place-items-center w-full h-full bg-gray-100 text-gray-500 text-4xl font-semibold">
+                    {showMatch ? (m?.name?.[0] ?? '?').toUpperCase() : '?'}
+                  </div>
+                )}
+              </div>
+              <div className="text-sm text-gray-700 mt-2">
+                {showMatch ? m?.name ?? 'Match' : 'Sem match'}
+              </div>
+            </div>
             <div className="flex items-start gap-4">
               <div className="flex-1">
                 <div className="text-sm text-gray-600 mb-1">

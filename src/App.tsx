@@ -1,4 +1,3 @@
-import React from 'react';
 import CameraAutoCapture from './components/CameraCapture';
 
 export default function App() {

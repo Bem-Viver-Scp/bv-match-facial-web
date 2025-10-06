@@ -1,22 +1,6 @@
-const API_URL = import.meta.env.VITE_API_URL?.replace(/\/$/, '') || '';
+import type { MatchResp } from './components/CameraCapture';
 
-export type MatchResponse =
-  | {
-      match: {
-        id: string;
-        name: string;
-        email?: string;
-        avatar_url?: string | null;
-        distance: number;
-      };
-      threshold: number;
-    }
-  | {
-      match: null;
-      bestDistance?: number;
-      threshold: number;
-      reason?: string;
-    };
+const API_URL = import.meta.env.VITE_API_URL?.replace(/\/$/, '') || '';
 
 export async function postMatch(descriptor: number[]) {
   const r = await fetch(`${API_URL}/userDescriptor/match`, {
@@ -32,5 +16,5 @@ export async function postMatch(descriptor: number[]) {
     const text = await r.text();
     throw new Error(`Erro ${r.status}: ${text}`);
   }
-  return (await r.json()) as MatchResponse;
+  return (await r.json()) as MatchResp;
 }

@@ -28,7 +28,7 @@ const RUN = {
 
 type FitFeedback = 'bad' | 'ok' | 'good';
 
-type MatchResp = {
+export type MatchResp = {
   match: null | {
     id: string;
     name: string;
@@ -692,7 +692,7 @@ function drawStatusOverlay(
 
   const cx = guide.cx * sx;
   const cy = guide.cy * sy;
-  const rx = guide.rx * sx;
+  // const rx = guide.rx * sx;
   const ry = guide.ry * sy;
 
   const color =

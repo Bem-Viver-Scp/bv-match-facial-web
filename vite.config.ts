@@ -2,7 +2,13 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+
 import { viteStaticCopy } from 'vite-plugin-static-copy';
+const API_ORIGIN = process.env.VITE_API_URL || ''; // ex: 'https://api.seudominio.com'
+
+function esc(str: string) {
+  return str.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+}
 
 export default defineConfig({
   plugins: [
@@ -13,7 +19,7 @@ export default defineConfig({
       ],
     }),
     VitePWA({
-      registerType: 'autoUpdate', // SW auto atualiza em background
+      registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'robots.txt', 'apple-touch-icon.png'],
       manifest: {
         name: 'BV Match',
@@ -36,10 +42,8 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // pré-cache: tudo que o Vite gera + seus modelos
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webp}'],
         additionalManifestEntries: [
-          // garante cache offline dos pesos do face-api
           {
             url: '/models/tiny_face_detector_model-weights_manifest.json',
             revision: null,
@@ -52,47 +56,56 @@ export default defineConfig({
             url: '/models/face_recognition_model-weights_manifest.json',
             revision: null,
           },
-          // se houver shards .bin, você pode usar um padrão (ou deixe pro runtimeCaching abaixo)
         ],
         runtimeCaching: [
-          // cache /models/*.bin e quaisquer arquivos grandes baixados em tempo de execução
+          // modelos .bin e afins
           {
             urlPattern: ({ url }) => url.pathname.startsWith('/models/'),
             handler: 'CacheFirst',
             options: {
               cacheName: 'models-cache',
-              expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 * 30 }, // 30 dias
+              expiration: { maxEntries: 80, maxAgeSeconds: 60 * 60 * 24 * 30 },
               cacheableResponse: { statuses: [0, 200] },
             },
           },
-          // backend API (match) com StaleWhileRevalidate
+          // API do backend (se tiver VITE_API_URL definido)
+          ...(API_ORIGIN
+            ? ([
+                {
+                  urlPattern: new RegExp('^' + esc(API_ORIGIN)),
+                  handler: 'StaleWhileRevalidate',
+                  options: {
+                    cacheName: 'api-cache',
+                    cacheableResponse: { statuses: [0, 200] },
+                  },
+                },
+              ] as any)
+            : []),
+          // imagens (avatars)
           {
             urlPattern: ({ url }) =>
-              url.origin === import.meta.env.VITE_API_URL,
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'api-cache',
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-          // imagens de avatar dos médicos
-          {
-            urlPattern: ({ url }) =>
-              url.pathname.match(/\.(png|jpg|jpeg|webp|gif)$/i),
+              /\.(png|jpg|jpeg|webp|gif|svg)$/i.test(url.pathname),
             handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'img-cache',
-              expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 * 7 }, // 7 dias
+              expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 * 7 },
+              cacheableResponse: { statuses: [0, 200] },
             },
           },
         ],
       },
       devOptions: {
-        enabled: true, // ativa PWA no `npm run dev` (útil p/ testar)
+        enabled: true,
         navigateFallback: 'index.html',
         suppressWarnings: true,
         type: 'module',
       },
     }),
   ],
+  // opcional: injeta a env no client build também
+  define: {
+    'import.meta.env.VITE_API_URL': JSON.stringify(
+      process.env.VITE_API_URL || ''
+    ),
+  },
 });

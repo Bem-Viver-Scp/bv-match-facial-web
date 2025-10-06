@@ -13,15 +13,15 @@ const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
 const GUIDE = {
   centerX: 0.5,
   centerY: 0.48,
-  targetRadius: isMobile ? 0.3 : 0.35, // rosto ocupa % do menor lado do frame de VÍDEO
-  posTol: isMobile ? 0.4 : 0.35, // tolerância de posição
-  sizeTol: isMobile ? 0.5 : 0.45, // tolerância de tamanho
-  angleTolDeg: isMobile ? 25 : 22, // tolerância de ângulo
+  targetRadius: isMobile ? 0.35 : 0.35, // rosto ocupa % do menor lado do frame de VÍDEO
+  posTol: isMobile ? 0.35 : 0.35, // tolerância de posição
+  sizeTol: isMobile ? 0.45 : 0.45, // tolerância de tamanho
+  angleTolDeg: isMobile ? 22 : 22, // tolerância de ângulo
 };
 
 const RUN = {
   intervalMs: 100,
-  lockConsecutive: 3, // quantos frames “good” para capturar
+  lockConsecutive: 5, // quantos frames “good” para capturar
   minScore: 0.5, // score mínimo da detecção
   captureOnYellowAfter: 8, // captura se ficar “ok” por N frames
 };

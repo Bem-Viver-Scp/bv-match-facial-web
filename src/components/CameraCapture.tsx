@@ -2,26 +2,28 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as faceapi from '@vladmandic/face-api';
-import { postMatch } from '../api';
 import Lottie from 'lottie-react';
 import loadingAnim from '../assets/recognize_loading.json';
+import { postMatch } from '../api';
 
 const baseUrl = '/models';
 
+// === tolerâncias adaptativas (mobile x desktop) ===
+const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
 const GUIDE = {
   centerX: 0.5,
   centerY: 0.48,
-  targetRadius: 0.32,
-  posTol: 0.28,
-  sizeTol: 0.35,
-  angleTolDeg: 18,
+  targetRadius: isMobile ? 0.3 : 0.35, // rosto ocupa % do menor lado do frame de VÍDEO
+  posTol: isMobile ? 0.4 : 0.35, // tolerância de posição
+  sizeTol: isMobile ? 0.5 : 0.45, // tolerância de tamanho
+  angleTolDeg: isMobile ? 25 : 22, // tolerância de ângulo
 };
 
 const RUN = {
   intervalMs: 100,
-  lockConsecutive: 3,
-  minScore: 0.5,
-  captureOnYellowAfter: 8,
+  lockConsecutive: 3, // quantos frames “good” para capturar
+  minScore: 0.5, // score mínimo da detecção
+  captureOnYellowAfter: 8, // captura se ficar “ok” por N frames
 };
 
 type FitFeedback = 'bad' | 'ok' | 'good';
@@ -49,9 +51,10 @@ type MatchResp = {
 export default function CameraAutoCapture() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const overlayRef = useRef<HTMLCanvasElement | null>(null);
-  const drawRef = useRef<HTMLCanvasElement | null>(null);
+  const overlayRef = useRef<HTMLCanvasElement | null>(null); // overlay visível (CSS px)
+  const drawRef = useRef<HTMLCanvasElement | null>(null); // canvas de detecção (vídeo px)
   const streamRef = useRef<MediaStream | null>(null);
+
   const [modelsReady, setModelsReady] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [overlayReady, setOverlayReady] = useState(false);
@@ -60,7 +63,6 @@ export default function CameraAutoCapture() {
   const [preview, setPreview] = useState<string | null>(null);
   const [locked, setLocked] = useState(false);
   const [loading, setLoading] = useState(false);
-
   const [resp, setResp] = useState<MatchResp | null>(null);
 
   const consecOk = useRef(0);
@@ -70,8 +72,36 @@ export default function CameraAutoCapture() {
     () => modelsReady && cameraReady && overlayReady,
     [modelsReady, cameraReady, overlayReady]
   );
+  const previewContainerRef = useRef<HTMLDivElement | null>(null);
+  const { ringSize, imgSize, inset } = useResponsiveRing(
+    previewContainerRef.current
+  );
+  function useResponsiveRing(container?: HTMLElement | null) {
+    const [ring, setRing] = useState({
+      ringSize: 520,
+      imgSize: 240,
+      inset: 140,
+    });
 
-  // Carrega modelos
+    useEffect(() => {
+      if (!container) return;
+
+      const ro = new ResizeObserver(() => {
+        const w = container.clientWidth || window.innerWidth;
+        const max = Math.min(w, 520); // limite superior
+        const ringSize = Math.max(280, Math.floor(max * 0.9)); // mínimo 280px
+        const imgSize = Math.floor(ringSize * 0.46); // ~46% do anel
+        const inset = Math.floor((ringSize - imgSize) / 2);
+        setRing({ ringSize, imgSize, inset });
+      });
+
+      ro.observe(container);
+      return () => ro.disconnect();
+    }, [container]);
+
+    return ring;
+  }
+  // 1) Carregar modelos
   useEffect(() => {
     let cancel = false;
     (async () => {
@@ -92,17 +122,18 @@ export default function CameraAutoCapture() {
     };
   }, []);
 
+  // 2) Abrir câmera quando modelos prontos
   useEffect(() => {
     if (!modelsReady) return;
-    let pollId: number | null = null;
 
+    let pollId: number | null = null;
     const waitForVideoDims = async (video: HTMLVideoElement) => {
       let tries = 0;
       await new Promise<void>((resolve) => {
         const check = () => {
           tries++;
           if (video.videoWidth > 0 && video.videoHeight > 0) resolve();
-          else if (tries > 60) resolve();
+          else if (tries > 80) resolve();
           else pollId = window.setTimeout(check, 50);
         };
         check();
@@ -113,7 +144,6 @@ export default function CameraAutoCapture() {
       try {
         setStatus('abrindo câmera…');
 
-        // se já temos stream, reusa:
         if (!streamRef.current) {
           streamRef.current = await navigator.mediaDevices.getUserMedia({
             video: {
@@ -143,12 +173,10 @@ export default function CameraAutoCapture() {
 
     return () => {
       if (pollId) window.clearTimeout(pollId);
-      // ⚠️ não paramos o stream aqui, pois trocar de tela (preview) desmonta o <video>, não o componente inteiro
-      // streams serão parados apenas quando o componente desmontar de verdade (veja efeito abaixo).
     };
   }, [modelsReady]);
 
-  // pare os tracks apenas quando o componente desmontar de verdade:
+  // 3) Fechar stream apenas ao desmontar
   useEffect(() => {
     return () => {
       if (streamRef.current) {
@@ -157,23 +185,23 @@ export default function CameraAutoCapture() {
       }
     };
   }, []);
+
+  // 4) Se sair do preview (locked=false), garante que a câmera volta
   useEffect(() => {
-    if (!locked && modelsReady) {
-      // saiu do preview: reanexa o stream ao <video>
-      ensureCamera();
-    }
+    if (!locked && modelsReady) ensureCamera();
   }, [locked, modelsReady]);
+
+  // 5) Auto-reset 5s após resposta
   useEffect(() => {
     if (locked && preview && resp && !loading) {
       const t = setTimeout(() => {
-        (async () => {
-          await handleReset();
-        })();
+        handleReset();
       }, 10000);
       return () => clearTimeout(t);
     }
   }, [locked, preview, resp, loading]);
-  // Overlay segue o vídeo
+
+  // 6) Overlay acompanha container
   useEffect(() => {
     if (!containerRef.current) return;
     const ro = new ResizeObserver(() => {
@@ -184,16 +212,18 @@ export default function CameraAutoCapture() {
     return () => ro.disconnect();
   }, [cameraReady]);
 
+  // === sincroniza tamanhos overlay/draw com vídeo ===
   function syncSizes() {
     const video = videoRef.current;
     const overlay = overlayRef.current;
     const draw = drawRef.current;
     if (!video || !overlay || !draw) return;
+
     const rect = video.getBoundingClientRect();
 
+    // overlay (CSS px + HiDPI)
     overlay.style.width = `${rect.width}px`;
     overlay.style.height = `${rect.height}px`;
-
     const dpr = Math.max(1, window.devicePixelRatio || 1);
     overlay.width = Math.round(rect.width * dpr);
     overlay.height = Math.round(rect.height * dpr);
@@ -201,11 +231,12 @@ export default function CameraAutoCapture() {
     octx.setTransform(dpr, 0, 0, dpr, 0, 0);
     octx.clearRect(0, 0, rect.width, rect.height);
 
+    // draw (vídeo px)
     draw.width = video.videoWidth || Math.round(rect.width * dpr);
     draw.height = video.videoHeight || Math.round(rect.height * dpr);
   }
 
-  // Loop de detecção
+  // === loop de detecção ===
   useEffect(() => {
     if (!appReady) return;
 
@@ -215,6 +246,7 @@ export default function CameraAutoCapture() {
       const draw = drawRef.current;
       if (!video || !overlay || !draw || locked || video.readyState < 2) return;
 
+      // garante sync se houver resize
       const rect = video.getBoundingClientRect();
       const dpr = Math.max(1, window.devicePixelRatio || 1);
       if (
@@ -229,11 +261,15 @@ export default function CameraAutoCapture() {
       const vw = video.videoWidth || rect.width;
       const vh = video.videoHeight || rect.height;
 
+      // desenha frame no canvas de detecção (vídeo px)
       dctx.setTransform(1, 0, 0, 1, 0, 0);
       dctx.drawImage(video, 0, 0, vw, vh);
 
+      // guia calculado em VÍDEO, overlay desenhado escalado pra CSS
+      const guideVideo = computeGuideVideo(vw, vh);
+
       octx.clearRect(0, 0, rect.width, rect.height);
-      const guide = drawGuide(octx, rect.width, rect.height);
+      drawGuideOverlay(octx, rect.width, rect.height, vw, vh, guideVideo);
 
       const opts = new faceapi.TinyFaceDetectorOptions({
         inputSize: 416,
@@ -246,14 +282,33 @@ export default function CameraAutoCapture() {
 
       if (!det || (det.detection.score ?? 0) < RUN.minScore) {
         consecOk.current = 0;
-        drawStatus(octx, guide, 'bad');
+        drawStatusOverlay(
+          octx,
+          rect.width,
+          rect.height,
+          vw,
+          vh,
+          guideVideo,
+          'bad'
+        );
         setStatus('posicione o rosto dentro da moldura');
         return;
       }
 
-      const fit = fitFaceToGuide(det, vw, vh, guide);
-      drawStatus(octx, guide, fit.mood, fit.score);
+      const fit = fitFaceToGuide(det, vw, vh, guideVideo);
+      drawStatusOverlay(
+        octx,
+        rect.width,
+        rect.height,
+        vw,
+        vh,
+        guideVideo,
+        fit.mood,
+        fit.score,
+        fit.hint
+      );
 
+      // contador de frames bons
       if (fit.mood === 'good') consecOk.current++;
       else if (fit.mood === 'ok' && RUN.captureOnYellowAfter)
         consecOk.current++;
@@ -276,8 +331,7 @@ export default function CameraAutoCapture() {
         try {
           const r: MatchResp = await postMatch(descriptor);
           setResp(r);
-          if (r.match) setStatus('reconhecido');
-          else setStatus('sem match');
+          setStatus(r.match ? 'reconhecido' : 'sem match');
         } catch (e: any) {
           setStatus('erro no match: ' + (e?.message ?? e));
         } finally {
@@ -294,11 +348,12 @@ export default function CameraAutoCapture() {
       if (loopId.current) window.clearInterval(loopId.current);
     };
   }, [appReady, locked]);
+
+  // garante câmera ligada/reanexada
   async function ensureCamera() {
     const video = videoRef.current;
     if (!video) return;
 
-    // se já temos um stream ativo, apenas reanexa
     if (streamRef.current) {
       video.srcObject = streamRef.current;
     } else {
@@ -312,15 +367,13 @@ export default function CameraAutoCapture() {
       });
       video.srcObject = streamRef.current;
     }
-
     video.muted = true;
     (video as any).playsInline = true;
     try {
       await video.play();
     } catch {}
-    // se ainda não temos dimensões, força um pequeno delay
     if (video.videoWidth === 0 || video.videoHeight === 0) {
-      await new Promise((r) => setTimeout(r, 50));
+      await new Promise((r) => setTimeout(r, 60));
     }
     syncSizes();
     setCameraReady(true);
@@ -334,13 +387,12 @@ export default function CameraAutoCapture() {
     setLoading(false);
     consecOk.current = 0;
     setStatus('câmera pronta');
-
-    await ensureCamera(); // <- garante vídeo reanexado e tocando
+    await ensureCamera();
   }
 
   // ===== RENDER =====
 
-  // Tela de carregamento centrada
+  // Tela de carregamento centralizada até tudo ficar pronto
   // if (!appReady) {
   //   return (
   //     <div className="min-h-screen grid place-items-center">
@@ -369,13 +421,8 @@ export default function CameraAutoCapture() {
   //   );
   // }
 
-  // Tela de captura: centralizada e com loading circular
-
+  // Preview com anel Lottie ao redor e cartão de resultado
   if (locked && preview) {
-    const ringSize = 520; // diâmetro do anel Lottie
-    const imgSize = 240; // diâmetro da sua foto
-    const inset = (ringSize - imgSize) / 2;
-
     const m = resp?.match;
     const appointment = resp?.nextAppointment;
     const showMatch = Boolean(m);
@@ -383,71 +430,67 @@ export default function CameraAutoCapture() {
     const cardBgClasses = `w-full max-w-2xl rounded-2xl border shadow-sm p-5 ${
       !m ? 'bg-red-50' : appointment ? 'bg-green-50' : 'bg-yellow-50'
     }`;
+
     return (
       <div className="min-h-screen grid place-items-center px-4">
-        <div className="flex flex-col items-center gap-8 w-full max-w-4xl">
-          {/* Linha com "Você" e "Match" */}
+        <div
+          ref={previewContainerRef}
+          className="flex flex-col items-center gap-8 w-full max-w-4xl"
+        >
           {!resp && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-10 sm:gap-16 place-items-center w-full">
-              {/* SUA CAPTURA: LOTTIE ATRÁS + IMAGEM NA FRENTE */}
-              <div
-                className="relative"
-                style={{ width: ringSize, height: ringSize }}
-              >
-                {/* Lottie fica por baixo da imagem */}
-                {/* {loading && ( */}
-                <Lottie
-                  animationData={loadingAnim}
-                  loop
-                  autoplay
-                  style={{
-                    position: 'absolute',
-                    left: 0,
-
-                    inset: 0,
-                    width: ringSize,
-                    height: ringSize,
-                    pointerEvents: 'none',
-                    zIndex: 1, // atrás
-                  }}
-                  rendererSettings={{ preserveAspectRatio: 'xMidYMid slice' }}
-                />
-                {/* )} */}
-
-                {/* Foto por cima */}
-                <img
-                  src={preview}
-                  alt="Você"
-                  style={{
-                    position: 'absolute',
-                    top: inset,
-                    left: inset,
-                    width: imgSize,
-                    height: imgSize,
-                    objectFit: 'cover',
-                    borderRadius: '9999px',
-                    boxShadow:
-                      '0 10px 20px rgba(0,0,0,0.15), inset 0 0 0 2px rgba(255,255,255,0.9)',
-                    zIndex: 1, // na frente
-                  }}
-                />
-
-                <div className="absolute -bottom-7 w-full text-center text-sm text-gray-700">
-                  Você
-                </div>
-              </div>
+            <div
+              className="relative"
+              style={{ width: ringSize, height: ringSize }}
+            >
+              {/* Lottie por trás, ocupando 100% do container */}
+              <Lottie
+                animationData={loadingAnim}
+                loop
+                autoplay
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  width: '100%',
+                  height: '100%',
+                  pointerEvents: 'none',
+                  zIndex: 1,
+                }}
+                // 'meet' preserva a animação inteira dentro do quadrado em telas menores
+                rendererSettings={{ preserveAspectRatio: 'xMidYMid meet' }}
+              />
+              {/* Foto por cima */}
+              <img
+                src={preview}
+                alt="Você"
+                style={{
+                  position: 'absolute',
+                  top: inset,
+                  left: inset,
+                  width: imgSize,
+                  height: imgSize,
+                  objectFit: 'cover',
+                  borderRadius: '9999px',
+                  boxShadow:
+                    '0 10px 20px rgba(0,0,0,0.15), inset 0 0 0 2px rgba(255,255,255,0.9)',
+                  zIndex: 2,
+                }}
+              />
             </div>
           )}
 
           {/* Cartão de resultado */}
           <div className={cardBgClasses}>
-            {/* Foto do médico reconhecido (ou placeholder) */}
             <div className="flex flex-col items-center">
               {resp?.changedAppointment === 'start' ? (
-                <h2>Entrada Registrada!</h2>
+                <h2 className="text-green-700 font-semibold">
+                  Entrada Registrada!
+                </h2>
               ) : resp?.changedAppointment === 'stop' ? (
-                <h2>Entrada Registrada!</h2>
+                <h2 className="text-yellow-700 font-semibold">
+                  Saída Registrada!
+                </h2>
               ) : null}
+
               <div
                 className="rounded-full overflow-hidden border shadow"
                 style={{ width: 240, height: 240 }}
@@ -472,15 +515,16 @@ export default function CameraAutoCapture() {
                 {showMatch ? m?.name ?? 'Match' : 'Sem match'}
               </div>
             </div>
-            <div className="flex items-start gap-4">
+
+            <div className="flex items-start gap-4 mt-4">
               <div className="flex-1">
                 <div className="text-sm text-gray-600 mb-1">
-                  {resp?.match ? 'Reconhecido' : 'Sem match'}
+                  {resp?.match ? 'Reconhecido' : 'Não reconhecido'}
                 </div>
                 {showMatch ? (
                   <div className="text-xl font-semibold">{m?.name}</div>
                 ) : (
-                  <div className="text-xl font-semibold">Não reconhecido</div>
+                  <div className="text-xl font-semibold">Sem match</div>
                 )}
 
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-700">
@@ -505,10 +549,10 @@ export default function CameraAutoCapture() {
                   {appointment ? (
                     <>
                       <span className="px-2 py-1 rounded-full bg-gray-100 border">
-                        Proxima rotina
+                        Próxima rotina
                       </span>
                       <span className="px-2 py-1 rounded-full bg-gray-100 border">
-                        entrada:
+                        entrada:{' '}
                         {new Date(appointment.start_checkin).toLocaleString(
                           'pt-BR',
                           {
@@ -520,9 +564,8 @@ export default function CameraAutoCapture() {
                           }
                         )}
                       </span>
-                      <br />
                       <span className="px-2 py-1 rounded-full bg-gray-100 border">
-                        saida:{' '}
+                        saída:{' '}
                         {new Date(appointment.stop_checkin).toLocaleString(
                           'pt-BR',
                           {
@@ -542,7 +585,6 @@ export default function CameraAutoCapture() {
                   )}
                 </div>
 
-                {/* Aviso de auto-reset */}
                 <div className="text-xs text-gray-500 mt-3">
                   Reiniciando em 5 segundos…
                 </div>
@@ -553,7 +595,8 @@ export default function CameraAutoCapture() {
       </div>
     );
   }
-  // Modo câmera: centralizado
+
+  // Modo câmera centralizado
   return (
     <div className="min-h-screen grid place-items-center px-4">
       <div className="flex flex-col items-center gap-3 w-full max-w-xl">
@@ -564,13 +607,10 @@ export default function CameraAutoCapture() {
         >
           <video
             ref={videoRef}
+            className="w-full h-auto rounded-xl bg-black"
             style={{
-              width: '100%',
-              height: 'auto',
               display: 'block',
-              transform: 'scaleX(-1)',
-              borderRadius: 16,
-              background: '#000',
+              transform: 'scaleX(-1)', // efeito "espelho"
             }}
             autoPlay
             muted
@@ -583,8 +623,8 @@ export default function CameraAutoCapture() {
               inset: 0,
               zIndex: 1,
               pointerEvents: 'none',
-              transform: 'scaleX(-1)',
-              borderRadius: 16,
+              transform: 'scaleX(-1)', // overlay espelhado igual ao vídeo
+              borderRadius: 12,
             }}
           />
           <canvas ref={drawRef} style={{ display: 'none' }} />
@@ -596,22 +636,36 @@ export default function CameraAutoCapture() {
   );
 }
 
-/* ===== helpers ===== */
+/* ===== Helpers (vídeo-space guide + overlay escalado) ===== */
 
-function drawGuide(
-  ctx: CanvasRenderingContext2D,
-  width: number,
-  height: number
-) {
-  const s = Math.min(width, height);
-  const cx = GUIDE.centerX * width;
-  const cy = GUIDE.centerY * height;
+function computeGuideVideo(videoW: number, videoH: number) {
+  const s = Math.min(videoW, videoH);
+  const cx = GUIDE.centerX * videoW;
+  const cy = GUIDE.centerY * videoH;
   const ry = GUIDE.targetRadius * s;
   const rx = ry * 0.8;
+  return { cx, cy, rx, ry };
+}
+
+function drawGuideOverlay(
+  ctx: CanvasRenderingContext2D,
+  cssW: number,
+  cssH: number,
+  videoW: number,
+  videoH: number,
+  guide: { cx: number; cy: number; rx: number; ry: number }
+) {
+  const sx = cssW / videoW;
+  const sy = cssH / videoH;
+
+  const cx = guide.cx * sx;
+  const cy = guide.cy * sy;
+  const rx = guide.rx * sx;
+  const ry = guide.ry * sy;
 
   ctx.save();
   ctx.fillStyle = 'rgba(0,0,0,0.35)';
-  ctx.fillRect(0, 0, width, height);
+  ctx.fillRect(0, 0, cssW, cssH);
   ctx.globalCompositeOperation = 'destination-out';
   ellipse(ctx, cx, cy, rx, ry);
   ctx.fill();
@@ -620,16 +674,27 @@ function drawGuide(
   ctx.beginPath();
   ellipse(ctx, cx, cy, rx, ry);
   ctx.lineWidth = 3;
-
-  return { cx, cy, rx, ry };
 }
 
-function drawStatus(
+function drawStatusOverlay(
   ctx: CanvasRenderingContext2D,
+  cssW: number,
+  cssH: number,
+  videoW: number,
+  videoH: number,
   guide: { cx: number; cy: number; rx: number; ry: number },
   mood: FitFeedback,
-  score?: number
+  score?: number,
+  hint?: string
 ) {
+  const sx = cssW / videoW;
+  const sy = cssH / videoH;
+
+  const cx = guide.cx * sx;
+  const cy = guide.cy * sy;
+  const rx = guide.rx * sx;
+  const ry = guide.ry * sy;
+
   const color =
     mood === 'good' ? '#22c55e' : mood === 'ok' ? '#fbbf24' : '#ef4444';
   ctx.strokeStyle = color;
@@ -639,16 +704,14 @@ function drawStatus(
   ctx.fillStyle = color;
   const pct = score != null ? ` (${Math.round(score * 100)}%)` : '';
   const tip =
-    mood === 'good'
+    hint ||
+    (mood === 'good'
       ? 'Perfeito! Segure…'
       : mood === 'ok'
       ? 'Quase lá… ajuste um pouco'
-      : 'Centralize o rosto';
-  ctx.fillText(
-    tip + pct,
-    Math.max(10, guide.cx - 110),
-    guide.cy + guide.ry + 22
-  );
+      : 'Centralize o rosto');
+
+  ctx.fillText(tip + pct, Math.max(10, cx - 110), cy + ry + 22);
 }
 
 function ellipse(
@@ -672,28 +735,62 @@ function fitFaceToGuide(
   videoW: number,
   videoH: number,
   guide: { cx: number; cy: number; rx: number; ry: number }
-): {
-  mood: FitFeedback;
-  score: number;
-} {
-  const box = det.detection.box;
+): { mood: FitFeedback; score: number; hint?: string } {
+  const box = det.detection.box; // px de VÍDEO
   const s = Math.min(videoW, videoH);
+
   const fx = box.x + box.width / 2;
   const fy = box.y + box.height / 2;
+
+  // 1) posição
   const dist = Math.hypot(fx - guide.cx, fy - guide.cy);
   const posScore = clamp01(1 - dist / (GUIDE.posTol * s));
+
+  // 2) tamanho
   const targetH = guide.ry * 2;
-  const sizeErr = Math.abs(box.height - targetH);
-  const sizeScore = clamp01(1 - sizeErr / (GUIDE.sizeTol * targetH));
+  const sizeErr = box.height - targetH; // >0: muito perto; <0: muito longe
+  const sizeScore = clamp01(1 - Math.abs(sizeErr) / (GUIDE.sizeTol * targetH));
+
+  // 3) ângulo
   const lm = det.landmarks;
   const L = mean(lm.getLeftEye());
   const R = mean(lm.getRightEye());
   const angleDeg = (Math.atan2(R.y - L.y, R.x - L.x) * 180) / Math.PI;
   const angleScore = clamp01(1 - Math.abs(angleDeg) / GUIDE.angleTolDeg);
-  const score = clamp01(0.45 * posScore + 0.35 * sizeScore + 0.2 * angleScore);
+
+  // pesos
+  const wPos = 0.45,
+    wSize = 0.35,
+    wAngle = 0.2;
+  const score = clamp01(
+    wPos * posScore + wSize * sizeScore + wAngle * angleScore
+  );
+
+  // dicas
+  let hint: string | undefined;
+  if (Math.abs(sizeErr) > GUIDE.sizeTol * targetH * 0.6) {
+    hint = sizeErr > 0 ? 'Afastar um pouco' : 'Chegar um pouco mais perto';
+  } else if (posScore < 0.45) {
+    const dx = fx - guide.cx;
+    const dy = fy - guide.cy;
+    // se quiser que esquerda/direita considerem o preview espelhado, inverta dx aqui:
+    // const dxMirror = -dx;
+    if (Math.abs(dx) > Math.abs(dy)) {
+      hint =
+        dx > 0
+          ? 'Mova um pouco para a direita'
+          : 'Mova um pouco para a esquerda';
+    } else {
+      hint = dy > 0 ? 'Mova um pouco para baixo' : 'Mova um pouco para cima';
+    }
+  } else if (angleScore < 0.5) {
+    hint =
+      angleDeg > 0 ? 'Nivele a cabeça à direita' : 'Nivele a cabeça à esquerda';
+  }
+
   const mood: FitFeedback =
     score >= 0.7 ? 'good' : score >= 0.45 ? 'ok' : 'bad';
-  return { mood, score };
+  return { mood, score, hint };
 }
 
 function clamp01(x: number) {

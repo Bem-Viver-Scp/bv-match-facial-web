@@ -39,6 +39,7 @@ type MatchResp = {
     start_checkin: string;
     stop_checkin: string;
   };
+  changedAppointment: 'start' | 'stop' | null;
   threshold: number;
   gap?: number;
   zscore?: number;
@@ -168,7 +169,7 @@ export default function CameraAutoCapture() {
         (async () => {
           await handleReset();
         })();
-      }, 5000);
+      }, 10000);
       return () => clearTimeout(t);
     }
   }, [locked, preview, resp, loading]);
@@ -379,7 +380,9 @@ export default function CameraAutoCapture() {
     const appointment = resp?.nextAppointment;
     const showMatch = Boolean(m);
     const dist = m?.distance ?? resp?.bestDistance;
-
+    const cardBgClasses = `w-full max-w-2xl rounded-2xl border shadow-sm p-5 ${
+      !m ? 'bg-red-50' : appointment ? 'bg-green-50' : 'bg-yellow-50'
+    }`;
     return (
       <div className="min-h-screen grid place-items-center px-4">
         <div className="flex flex-col items-center gap-8 w-full max-w-4xl">
@@ -437,9 +440,14 @@ export default function CameraAutoCapture() {
           )}
 
           {/* Cartão de resultado */}
-          <div className="w-full max-w-2xl rounded-2xl border shadow-sm p-5 bg-white">
+          <div className={cardBgClasses}>
             {/* Foto do médico reconhecido (ou placeholder) */}
             <div className="flex flex-col items-center">
+              {resp?.changedAppointment === 'start' ? (
+                <h2>Entrada Registrada!</h2>
+              ) : resp?.changedAppointment === 'stop' ? (
+                <h2>Entrada Registrada!</h2>
+              ) : null}
               <div
                 className="rounded-full overflow-hidden border shadow"
                 style={{ width: 240, height: 240 }}
@@ -500,7 +508,7 @@ export default function CameraAutoCapture() {
                         Proxima rotina
                       </span>
                       <span className="px-2 py-1 rounded-full bg-gray-100 border">
-                        entrada:{' '}
+                        entrada:
                         {new Date(appointment.start_checkin).toLocaleString(
                           'pt-BR',
                           {

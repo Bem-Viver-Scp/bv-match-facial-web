@@ -1,15 +1,16 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { MatchResp } from './components/CameraCapture';
 
-const API_URL = import.meta.env.VITE_API_URL?.replace(/\/$/, '') || '';
+const isElectron = typeof window !== 'undefined' && (window as any).env;
+const API_BASE =
+  (isElectron && (window as any).env.API_BASE) ||
+  import.meta.env.VITE_API_URL ||
+  '';
 
 export async function postMatch(descriptor: number[]) {
-  const r = await fetch(`${API_URL}/userDescriptor/match`, {
+  const r = await fetch(`${API_BASE}/userDescriptor/match`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization:
-        'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoibWFzdGVyIiwiaWF0IjoxNzU5NjQwMjk5LCJleHAiOjE3NjAyNDUwOTksInN1YiI6ImE3ZDFmNjEyLTM4YzMtNDUxNy1hNmU0LWU0M2ViNTNjNDRiNCJ9.jSClKws1e_zGV5FuEJrrDBlTivMm3XKuwL727hq4n30',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ descriptor: JSON.stringify(descriptor) }),
   });
   if (!r.ok) {

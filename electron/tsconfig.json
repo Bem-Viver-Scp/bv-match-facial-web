@@ -1,0 +1,14 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "../electron",
+    "module": "commonjs",
+    "target": "es2020",
+    "lib": ["es2020"],
+    "rootDir": "./",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "sourceMap": true
+  },
+  "include": ["./**/*.ts", "main.mjs", "preload.mjs"]
+}

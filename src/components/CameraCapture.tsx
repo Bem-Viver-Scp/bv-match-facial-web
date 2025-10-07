@@ -6,7 +6,9 @@ import Lottie from 'lottie-react';
 import loadingAnim from '../assets/recognize_loading.json';
 import { postMatch } from '../api';
 
-const baseUrl = '/models';
+const baseUrl =
+  (window as any)?.env?.MODELS_BASE ||
+  (window.location.protocol === 'file:' ? './models' : '/models');
 
 // === tolerâncias adaptativas (mobile x desktop) ===
 const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);

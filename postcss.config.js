@@ -1,6 +1,6 @@
-// postcss.config.js
-export default {
+// postcss.config.js  (CommonJS)
+module.exports = {
   plugins: {
-    '@tailwindcss/postcss': {}, // <- v4 usa este plugin
+    '@tailwindcss/postcss': {},
   },
 };

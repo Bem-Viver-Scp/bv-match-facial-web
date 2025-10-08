@@ -10,7 +10,7 @@
     "build": "tsc -b && vite build",
     "prebuild": "node scripts/copy-models.cjs",
     "dist:linux": "ELECTRON=1 npm run build && electron-builder --linux",
-    "dist:win": "ELECTRON=1 npm run build && electron-builder --win --x64 --arm64",
+    "dist:win": "cross-env ELECTRON=1 CSC_IDENTITY_AUTO_DISCOVERY=false npm run build && electron-builder --win --x64 --config.forceCodeSigning=false --config.win.signAndEditExecutable=false",
     "dist:mac": "ELECTRON=1 npm run build && electron-builder --mac",
     "lint": "eslint .",
     "preview": "vite preview"
@@ -58,6 +58,7 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true
     },
+    "forceCodeSigning": false,
     "appId": "com.bemviver.bv-match",
     "productName": "BV Match",
     "files": [
@@ -89,7 +90,9 @@
       "target": [
         "nsis",
         "zip"
-      ]
+      ],
+      "signAndEditExecutable": false,
+      "signExts": []
     },
     "linux": {
       "target": [

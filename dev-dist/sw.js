@@ -82,15 +82,13 @@ define(['./workbox-3d1c42bc'], (function (workbox) { 'use strict';
     "revision": "d41d8cd98f00b204e9800998ecf8427e"
   }, {
     "url": "index.html",
-    "revision": "0.mgh1u7v3lvg"
+    "revision": "0.34s31qf69m8"
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("index.html"), {
     allowlist: [/^\/$/]
   }));
-  workbox.registerRoute(({
-    url
-  }) => url.pathname.startsWith("/models/"), new workbox.CacheFirst({
+  workbox.registerRoute(/\/models\//, new workbox.CacheFirst({
     "cacheName": "models-cache",
     plugins: [new workbox.ExpirationPlugin({
       maxEntries: 80,

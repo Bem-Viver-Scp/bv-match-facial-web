@@ -1,15 +1,17 @@
 /* eslint-disable no-empty */
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as faceapi from '@vladmandic/face-api';
 import Lottie from 'lottie-react';
 import loadingAnim from '../assets/recognize_loading.json';
 import { postMatch } from '../api';
+import * as tf from '@tensorflow/tfjs';
+import '@tensorflow/tfjs-backend-wasm';
+import * as wasm from '@tensorflow/tfjs-backend-wasm';
 
-const baseUrl =
-  (window as any)?.env?.MODELS_BASE ||
-  (window.location.protocol === 'file:' ? './models' : '/models');
-
+const baseUrl = import.meta.env.BASE_URL + 'models';
+const wasmBase = import.meta.env.BASE_URL + 'tfjs/';
 // === tolerâncias adaptativas (mobile x desktop) ===
 const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
 const GUIDE = {
@@ -103,14 +105,38 @@ export default function CameraAutoCapture() {
 
     return ring;
   }
-  // 1) Carregar modelos
+
   useEffect(() => {
     let cancel = false;
     (async () => {
       try {
-        await faceapi.nets.tinyFaceDetector.loadFromUri(baseUrl);
-        await faceapi.nets.faceLandmark68Net.loadFromUri(baseUrl);
-        await faceapi.nets.faceRecognitionNet.loadFromUri(baseUrl);
+        // >>> 1) aponte onde estão os .wasm na sua build
+        // coloque os .wasm em /public/tfjs/ (ver passo 2)
+
+        wasm.setWasmPaths(wasmBase);
+
+        // (opcionais) em aparelhos antigos / Electron sem COOP/COEP:
+        try {
+          tf.env().set('WASM_HAS_SIMD_SUPPORT', false);
+          tf.env().set('WASM_HAS_THREADS_SUPPORT', false);
+        } catch {}
+
+        // >>> 2) ative WASM (fallback para CPU se falhar)
+        try {
+          await tf.setBackend('wasm');
+        } catch {
+          await tf.setBackend('cpu');
+        }
+        await tf.ready();
+        console.log('Backend TFJS:', tf.getBackend());
+
+        // >>> 3) só agora carregue os modelos
+        await Promise.all([
+          faceapi.nets.tinyFaceDetector.loadFromUri(baseUrl),
+          faceapi.nets.faceLandmark68Net.loadFromUri(baseUrl),
+          faceapi.nets.faceRecognitionNet.loadFromUri(baseUrl),
+        ]);
+
         if (!cancel) {
           setModelsReady(true);
           setStatus('modelos prontos');
@@ -351,35 +377,34 @@ export default function CameraAutoCapture() {
     };
   }, [appReady, locked]);
 
-  // garante câmera ligada/reanexada
   async function ensureCamera() {
     const video = videoRef.current;
     if (!video) return;
 
-    if (streamRef.current) {
-      video.srcObject = streamRef.current;
-    } else {
-      streamRef.current = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'user',
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-        audio: false,
-      });
-      video.srcObject = streamRef.current;
-    }
-    video.muted = true;
-    (video as any).playsInline = true;
     try {
+      if (!streamRef.current) {
+        streamRef.current = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: 'user',
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+          audio: false,
+        });
+      }
+      video.srcObject = streamRef.current;
+      video.muted = true;
+      (video as any).playsInline = true;
       await video.play();
-    } catch {}
-    if (video.videoWidth === 0 || video.videoHeight === 0) {
-      await new Promise((r) => setTimeout(r, 60));
+      if (video.videoWidth === 0 || video.videoHeight === 0) {
+        await new Promise((r) => setTimeout(r, 60));
+      }
+      syncSizes();
+      setCameraReady(true);
+      setOverlayReady(true);
+    } catch (err: any) {
+      setStatus('erro câmera: ' + (err?.name || err?.message || String(err)));
     }
-    syncSizes();
-    setCameraReady(true);
-    setOverlayReady(true);
   }
 
   async function handleReset() {

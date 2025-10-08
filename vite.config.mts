@@ -1,5 +1,4 @@
-// vite.config.ts
-
+// vite.config.mts
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
@@ -10,16 +9,22 @@ function esc(str: string) {
 }
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), ''); // carrega .env*
-  const API_ORIGIN = env.VITE_API_URL || ''; // <- agora funciona
+  const env = loadEnv(mode, process.cwd(), '');
+  const API_ORIGIN = env.VITE_API_URL || '';
 
   return {
-    base: mode === 'development' ? '/' : './',
+    // para Electron / file://
+    base: './',
     plugins: [
       react(),
+      // copia os modelos para dist/models
       viteStaticCopy({
         targets: [
           { src: 'node_modules/@vladmandic/face-api/model/*', dest: 'models' },
+          {
+            src: 'node_modules/@tensorflow/tfjs-backend-wasm/dist/*.wasm',
+            dest: 'tfjs',
+          },
         ],
       }),
       VitePWA({
@@ -33,12 +38,12 @@ export default defineConfig(({ mode }) => {
           background_color: '#0b1220',
           display: 'standalone',
           orientation: 'portrait',
-          start_url: '/',
+          start_url: './',
           icons: [
-            { src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' },
-            { src: '/pwa-512x512.png', sizes: '512x512', type: 'image/png' },
+            { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
+            { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png' },
             {
-              src: '/maskable-512x512.png',
+              src: 'maskable-512x512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'maskable',
@@ -46,25 +51,29 @@ export default defineConfig(({ mode }) => {
           ],
         },
         workbox: {
+          maximumFileSizeToCacheInBytes: 6 * 1024 * 1024, // 6 MiB
+
           globPatterns: ['**/*.{js,css,html,ico,png,svg,webp}'],
+          // ✅ cada entry precisa de { url, revision }
           additionalManifestEntries: [
             {
-              url: '/models/tiny_face_detector_model-weights_manifest.json',
+              url: 'models/tiny_face_detector_model-weights_manifest.json',
               revision: null,
             },
             {
-              url: '/models/face_landmark_68_model-weights_manifest.json',
+              url: 'models/face_landmark_68_model-weights_manifest.json',
               revision: null,
             },
             {
-              url: '/models/face_recognition_model-weights_manifest.json',
+              url: 'models/face_recognition_model-weights_manifest.json',
               revision: null,
             },
           ],
           runtimeCaching: [
+            // modelos (inclui .bin baixados por esses manifests)
             {
-              urlPattern: ({ url }) => url.pathname.startsWith('/models/'),
-              handler: 'CacheFirst',
+              urlPattern: /\/models\//,
+              handler: 'CacheFirst' as const,
               options: {
                 cacheName: 'models-cache',
                 expiration: {
@@ -74,12 +83,12 @@ export default defineConfig(({ mode }) => {
                 cacheableResponse: { statuses: [0, 200] },
               },
             },
+            // API (se existir VITE_API_URL)
             ...(API_ORIGIN
               ? ([
                   {
-                    // cache leve para API em produção
                     urlPattern: new RegExp('^' + esc(API_ORIGIN)),
-                    handler: 'StaleWhileRevalidate',
+                    handler: 'StaleWhileRevalidate' as const,
                     options: {
                       cacheName: 'api-cache',
                       cacheableResponse: { statuses: [0, 200] },
@@ -87,10 +96,11 @@ export default defineConfig(({ mode }) => {
                   },
                 ] as any)
               : []),
+            // imagens (avatars)
             {
-              urlPattern: ({ url }) =>
+              urlPattern: ({ url }: { url: any }) =>
                 /\.(png|jpg|jpeg|webp|gif|svg)$/i.test(url.pathname),
-              handler: 'StaleWhileRevalidate',
+              handler: 'StaleWhileRevalidate' as const,
               options: {
                 cacheName: 'img-cache',
                 expiration: {
@@ -100,7 +110,7 @@ export default defineConfig(({ mode }) => {
                 cacheableResponse: { statuses: [0, 200] },
               },
             },
-          ],
+          ] as any, // <— simplifica as verificações de tipo do TS
         },
         devOptions: {
           enabled: true,
@@ -110,7 +120,6 @@ export default defineConfig(({ mode }) => {
         },
       }),
     ],
-    // Proxy no DEV: chamadas a /api vão para seu backend
     server: {
       proxy: {
         '/api': {

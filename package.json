@@ -9,13 +9,15 @@
     "dev:electron": "wait-on http://localhost:5173 && electron .",
     "build": "tsc -b && vite build",
     "prebuild": "node scripts/copy-models.cjs",
-    "dist:win": "npm run build && electron-builder --win --x64 --arm64",
-    "dist:linux": "npm run build && electron-builder --linux",
-    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:linux": "ELECTRON=1 npm run build && electron-builder --linux",
+    "dist:win": "ELECTRON=1 npm run build && electron-builder --win --x64 --arm64",
+    "dist:mac": "ELECTRON=1 npm run build && electron-builder --mac",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@tensorflow/tfjs": "^4.22.0",
+    "@tensorflow/tfjs-backend-wasm": "^4.22.0",
     "@vladmandic/face-api": "^1.7.15",
     "face-api.js": "^0.22.2",
     "lottie-react": "^2.4.1",

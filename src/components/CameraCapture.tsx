@@ -12,7 +12,7 @@ import * as wasm from '@tensorflow/tfjs-backend-wasm';
 
 const baseUrl = import.meta.env.BASE_URL + 'models';
 const wasmBase = import.meta.env.BASE_URL + 'tfjs/';
-// === tolerâncias adaptativas (mobile x desktop) ===
+const IS_RASPBERRY = import.meta.env.VITE_IS_RASPBERRY === 'true';
 const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
 const GUIDE = {
   centerX: 0.5,
@@ -24,10 +24,10 @@ const GUIDE = {
 };
 
 const RUN = {
-  intervalMs: 100,
-  lockConsecutive: 5, // quantos frames “good” para capturar
+  intervalMs: IS_RASPBERRY ? 150 : 100,
+  lockConsecutive: IS_RASPBERRY ? 1 : 5, // quantos frames “good” para capturar
   minScore: 0.5, // score mínimo da detecção
-  captureOnYellowAfter: 8, // captura se ficar “ok” por N frames
+  captureOnYellowAfter: IS_RASPBERRY ? 3 : 8, // captura se ficar “ok” por N frames
 };
 
 type FitFeedback = 'bad' | 'ok' | 'good';
@@ -82,9 +82,9 @@ export default function CameraAutoCapture() {
   );
   function useResponsiveRing(container?: HTMLElement | null) {
     const [ring, setRing] = useState({
-      ringSize: 520,
-      imgSize: 240,
-      inset: 140,
+      ringSize: (520 * 2) / 3,
+      imgSize: (240 * 2) / 3,
+      inset: (140 * 2) / 3,
     });
 
     useEffect(() => {
@@ -173,12 +173,15 @@ export default function CameraAutoCapture() {
         setStatus('abrindo câmera…');
 
         if (!streamRef.current) {
+          const videoConstraints = IS_RASPBERRY
+            ? true
+            : {
+                facingMode: 'user',
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+              };
           streamRef.current = await navigator.mediaDevices.getUserMedia({
-            video: {
-              facingMode: 'user',
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-            },
+            video: videoConstraints,
             audio: false,
           });
         }
@@ -223,7 +226,7 @@ export default function CameraAutoCapture() {
   useEffect(() => {
     if (locked && preview && resp && !loading) {
       const t = setTimeout(() => {
-        handleReset();
+        // handleReset();
       }, 10000);
       return () => clearTimeout(t);
     }
@@ -300,7 +303,7 @@ export default function CameraAutoCapture() {
       drawGuideOverlay(octx, rect.width, rect.height, vw, vh, guideVideo);
 
       const opts = new faceapi.TinyFaceDetectorOptions({
-        inputSize: 416,
+        inputSize: IS_RASPBERRY ? 160 : 416,
         scoreThreshold: 0.5,
       });
       const det = await faceapi
@@ -382,13 +385,16 @@ export default function CameraAutoCapture() {
     if (!video) return;
 
     try {
-      if (!streamRef.current) {
-        streamRef.current = await navigator.mediaDevices.getUserMedia({
-          video: {
+      const videoConstraints = IS_RASPBERRY
+        ? true
+        : {
             facingMode: 'user',
             width: { ideal: 1280 },
             height: { ideal: 720 },
-          },
+          };
+      if (!streamRef.current) {
+        streamRef.current = await navigator.mediaDevices.getUserMedia({
+          video: videoConstraints,
           audio: false,
         });
       }
@@ -470,21 +476,23 @@ export default function CameraAutoCapture() {
               style={{ width: ringSize, height: ringSize }}
             >
               {/* Lottie por trás, ocupando 100% do container */}
-              <Lottie
-                animationData={loadingAnim}
-                loop
-                autoplay
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  width: '100%',
-                  height: '100%',
-                  pointerEvents: 'none',
-                  zIndex: 1,
-                }}
-                // 'meet' preserva a animação inteira dentro do quadrado em telas menores
-                rendererSettings={{ preserveAspectRatio: 'xMidYMid meet' }}
-              />
+              {!IS_RASPBERRY && (
+                <Lottie
+                  animationData={loadingAnim}
+                  loop
+                  autoplay
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    width: '100%',
+                    height: '100%',
+                    pointerEvents: 'none',
+                    zIndex: 1,
+                  }}
+                  // 'meet' preserva a animação inteira dentro do quadrado em telas menores
+                  rendererSettings={{ preserveAspectRatio: 'xMidYMid meet' }}
+                />
+              )}
               {/* Foto por cima */}
               <img
                 src={preview}
@@ -520,7 +528,7 @@ export default function CameraAutoCapture() {
 
               <div
                 className="rounded-full overflow-hidden border shadow"
-                style={{ width: 240, height: 240 }}
+                style={{ width: (240 * 2) / 3, height: (240 * 2) / 3 }}
               >
                 {showMatch && m?.avatar_url ? (
                   <img
@@ -650,7 +658,7 @@ export default function CameraAutoCapture() {
               inset: 0,
               zIndex: 1,
               pointerEvents: 'none',
-              transform: 'scaleX(-1)', // overlay espelhado igual ao vídeo
+              // transform: 'scaleX(-1)', // overlay espelhado igual ao vídeo
               borderRadius: 12,
             }}
           />

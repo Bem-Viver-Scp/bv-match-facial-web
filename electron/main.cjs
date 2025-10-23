@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 
 const ELECTRON_DEV = process.env.ELECTRON_DEV === 'true';
-
+const IS_RASPBERRY = process.env.IS_RASPBERRY === 'true';
 function resolveIndexHtml() {
   // Em dev servimos via Vite
   if (ELECTRON_DEV) return null;
@@ -69,6 +69,10 @@ function createWindow() {
   return win;
 }
 
+if (IS_RASPBERRY) {
+  console.log('🐧 Rodando no Raspberry — desativando aceleração de hardware');
+  app.disableHardwareAcceleration();
+}
 app.whenReady().then(() => {
   // ⚠️ Em algumas distros Linux é preciso isso para getUserMedia com file://
   app.commandLine.appendSwitch('no-sandbox');

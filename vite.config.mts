@@ -14,6 +14,11 @@ export default defineConfig(({ mode }) => {
 
   return {
     // para Electron / file://
+    define: {
+      'import.meta.env.VITE_IS_RASPBERRY': JSON.stringify(
+        env.VITE_IS_RASPBERRY
+      ),
+    },
     base: './',
     plugins: [
       react(),

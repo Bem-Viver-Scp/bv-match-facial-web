@@ -11,7 +11,7 @@
     "build": "tsc -b && vite build",
     "prebuild": "node scripts/copy-models.cjs",
     "dist:linux": "ELECTRON=1 npm run build && electron-builder --linux --x64",
-    "dist:raspberry": "ELECTRON=1 vite build --mode raspberry && electron-builder --linux",
+    "dist:raspberry": "ELECTRON=1 vite build --mode raspberry && electron-builder --linux deb --armv7l",
     "dist:win": "cross-env ELECTRON=1 CSC_IDENTITY_AUTO_DISCOVERY=false npm run build && electron-builder --win --x64 --config.forceCodeSigning=false --config.win.signAndEditExecutable=false",
     "dist:mac": "ELECTRON=1 npm run build && electron-builder --mac",
     "lint": "eslint .",
@@ -98,8 +98,18 @@
     },
     "linux": {
       "target": [
-        "AppImage",
-        "deb"
+        {
+          "target": "deb",
+          "arch": [
+            "armv7l"
+          ]
+        },
+        {
+          "target": "AppImage",
+          "arch": [
+            "armv7l"
+          ]
+        }
       ]
     }
   }

@@ -22,6 +22,7 @@ const GUIDE = {
   sizeTol: isMobile ? 0.45 : 0.45, // tolerância de tamanho
   angleTolDeg: isMobile ? 22 : 22, // tolerância de ângulo
 };
+const resetTime = 7000;
 
 const RUN = {
   intervalMs: IS_RASPBERRY ? 150 : 100,
@@ -226,8 +227,8 @@ export default function CameraAutoCapture() {
   useEffect(() => {
     if (locked && preview && resp && !loading) {
       const t = setTimeout(() => {
-        // handleReset();
-      }, 10000);
+        handleReset();
+      }, resetTime);
       return () => clearTimeout(t);
     }
   }, [locked, preview, resp, loading]);
@@ -621,7 +622,7 @@ export default function CameraAutoCapture() {
                 </div>
 
                 <div className="text-xs text-gray-500 mt-3">
-                  Reiniciando em 5 segundos…
+                  Reiniciando em {resetTime / 1000} segundos…
                 </div>
               </div>
             </div>

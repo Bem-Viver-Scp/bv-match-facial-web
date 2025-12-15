@@ -52,8 +52,16 @@ export type MatchResp = {
   zscore?: number;
   bestDistance?: number;
 };
-
-export default function CameraAutoCapture() {
+type CameraAutoCaptureProps = {
+  onTimeout?: () => void;   // voltar pra tela inicial se ficar muito tempo na webcam
+  onFinished?: () => void;  // depois do reconhecimento (match ou não)
+  maxIdleMs?: number;       // tempo máximo na tela da câmera (sem reconhecimento)
+};
+export default function CameraAutoCapture({
+  onTimeout,
+  onFinished,
+  maxIdleMs = 60_000, // 60s padrão
+}: CameraAutoCaptureProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const overlayRef = useRef<HTMLCanvasElement | null>(null); // overlay visível (CSS px)
@@ -175,7 +183,7 @@ export default function CameraAutoCapture() {
 
         if (!streamRef.current) {
           const videoConstraints = IS_RASPBERRY
-            ? true
+            ? { width: { ideal: 1280 }, height: { ideal: 720 } }
             : {
                 facingMode: 'user',
                 width: { ideal: 1280 },
@@ -223,15 +231,20 @@ export default function CameraAutoCapture() {
     if (!locked && modelsReady) ensureCamera();
   }, [locked, modelsReady]);
 
-  // 5) Auto-reset 5s após resposta
+  // 5) Após resposta, volta pra tela inicial (ou reseta internamente se onFinished não vier)
   useEffect(() => {
     if (locked && preview && resp && !loading) {
       const t = setTimeout(() => {
-        handleReset();
+        if (onFinished) {
+          onFinished();
+        } else {
+          // fallback: se ninguém controlar de fora, só reseta câmera
+          handleReset();
+        }
       }, resetTime);
       return () => clearTimeout(t);
     }
-  }, [locked, preview, resp, loading]);
+  }, [locked, preview, resp, loading, onFinished]);
 
   // 6) Overlay acompanha container
   useEffect(() => {
@@ -380,14 +393,25 @@ export default function CameraAutoCapture() {
       if (loopId.current) window.clearInterval(loopId.current);
     };
   }, [appReady, locked]);
+  // 6.x) Timeout geral da tela da câmera: se ficar muito tempo, volta pra tela inicial
+  useEffect(() => {
+    if (!onTimeout) return;
+    if (!appReady) return;
+    if (locked) return; // se já travou pra preview, outro fluxo cuida
 
+    const timer = window.setTimeout(() => {
+      onTimeout();
+    }, maxIdleMs);
+
+    return () => window.clearTimeout(timer);
+  }, [appReady, locked, onTimeout, maxIdleMs]);
   async function ensureCamera() {
     const video = videoRef.current;
     if (!video) return;
 
     try {
       const videoConstraints = IS_RASPBERRY
-        ? true
+        ? { width: { ideal: 480 }, height: { ideal: 320 } }
         : {
             facingMode: 'user',
             width: { ideal: 1280 },
